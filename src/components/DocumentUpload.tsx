@@ -4,9 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, CheckCircle, X, AlertCircle } from "lucide-react";
+import { Upload, FileText, CheckCircle, X, AlertCircle, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { esgCategories } from "@/data/mockData";
 
@@ -17,10 +16,10 @@ interface Document {
   uploadDate: string;
   status: 'approved' | 'pending' | 'rejected';
   size: string;
+  documentType: string;
 }
 
 const DocumentUpload = () => {
-  const [selectedCategory, setSelectedCategory] = useState("");
   const [documents, setDocuments] = useState<Document[]>([
     {
       id: '1',
@@ -28,7 +27,8 @@ const DocumentUpload = () => {
       category: 'carbonEmissions',
       uploadDate: '2024-01-10',
       status: 'approved',
-      size: '2.3 MB'
+      size: '2.3 MB',
+      documentType: 'GHG Inventory Reports'
     },
     {
       id: '2',
@@ -36,7 +36,8 @@ const DocumentUpload = () => {
       category: 'laborPractices',
       uploadDate: '2024-01-08',
       status: 'approved',
-      size: '1.8 MB'
+      size: '1.8 MB',
+      documentType: 'Social audits (SMETA)'
     },
     {
       id: '3',
@@ -44,31 +45,32 @@ const DocumentUpload = () => {
       category: 'renewableEnergy',
       uploadDate: '2024-01-15',
       status: 'pending',
-      size: '3.1 MB'
+      size: '3.1 MB',
+      documentType: 'Renewable Energy Certificates (RECs)'
     }
   ]);
   const { toast } = useToast();
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, categoryId: string, documentType: string) => {
     const file = e.target.files?.[0];
-    if (file && selectedCategory) {
+    if (file) {
       const newDoc: Document = {
         id: Date.now().toString(),
         name: file.name,
-        category: selectedCategory,
+        category: categoryId,
         uploadDate: new Date().toISOString().split('T')[0],
         status: 'pending',
-        size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+        size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+        documentType: documentType
       };
       
       setDocuments([...documents, newDoc]);
       toast({
         title: "Document Uploaded Successfully",
-        description: `${file.name} has been uploaded and is pending review.`,
+        description: `${file.name} has been uploaded for ${documentType} and is pending review.`,
       });
       
-      // Reset form
-      setSelectedCategory("");
+      // Reset file input
       e.target.value = "";
     }
   };
@@ -91,95 +93,191 @@ const DocumentUpload = () => {
     }
   };
 
-  const getCategoryName = (categoryId: string) => {
-    return esgCategories.find(cat => cat.id === categoryId)?.name || categoryId;
+  const getCategoryDocuments = (categoryId: string) => {
+    return documents.filter(doc => doc.category === categoryId);
+  };
+
+  const getDocumentProgress = (categoryId: string, requiredDocs: string[]) => {
+    const categoryDocs = getCategoryDocuments(categoryId);
+    const uploadedTypes = categoryDocs.map(doc => doc.documentType);
+    const uploaded = requiredDocs.filter(doc => uploadedTypes.includes(doc)).length;
+    return { uploaded, total: requiredDocs.length, percentage: (uploaded / requiredDocs.length) * 100 };
   };
 
   return (
     <div className="space-y-6">
-      {/* Upload Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Upload className="h-5 w-5 mr-2 text-blue-600" />
-            Upload Compliance Documents
-          </CardTitle>
-          <CardDescription>
-            Submit your ESG documentation for review and scoring
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="category">ESG Category</Label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {esgCategories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="file">Document File</Label>
-              <Input
-                id="file"
-                type="file"
-                accept=".pdf,.doc,.docx,.xls,.xlsx"
-                onChange={handleFileUpload}
-                disabled={!selectedCategory}
-                className="cursor-pointer"
-              />
-            </div>
-          </div>
+      {/* Category-wise Document Upload */}
+      <div className="grid gap-6">
+        {esgCategories.map((category) => {
+          const progress = getDocumentProgress(category.id, category.requiredDocuments);
+          const categoryDocs = getCategoryDocuments(category.id);
           
-          {selectedCategory && (
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h3 className="font-semibold text-blue-900 mb-2">
-                Required Documents for {getCategoryName(selectedCategory)}:
-              </h3>
-              <ul className="text-sm text-blue-800 space-y-1">
-                {esgCategories.find(cat => cat.id === selectedCategory)?.requiredDocuments.map((doc, index) => (
-                  <li key={index} className="flex items-start">
-                    <span className="text-blue-600 mr-2">•</span>
-                    {doc}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          return (
+            <Card key={category.id} className="border-l-4 border-l-blue-500">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">{category.name}</CardTitle>
+                    <CardDescription>{category.description}</CardDescription>
+                  </div>
+                  <div className="text-right">
+                    <Badge variant="outline" className="mb-2">
+                      {progress.uploaded}/{progress.total} Documents
+                    </Badge>
+                    <div className="w-32 bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                        style={{ width: `${progress.percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Required Documents List */}
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-gray-900 mb-3">Required Documents:</h4>
+                  {category.requiredDocuments.map((docType, index) => {
+                    const isUploaded = categoryDocs.some(doc => doc.documentType === docType);
+                    const uploadedDoc = categoryDocs.find(doc => doc.documentType === docType);
+                    
+                    return (
+                      <div key={index} className="border rounded-lg p-4 bg-gray-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            {isUploaded ? (
+                              <CheckCircle className="h-5 w-5 text-green-600" />
+                            ) : (
+                              <AlertCircle className="h-5 w-5 text-yellow-600" />
+                            )}
+                            <span className="font-medium text-gray-900">{docType}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {isUploaded && uploadedDoc && (
+                              <Badge className={getStatusColor(uploadedDoc.status)} variant="secondary">
+                                <span className="flex items-center space-x-1">
+                                  {getStatusIcon(uploadedDoc.status)}
+                                  <span className="capitalize">{uploadedDoc.status}</span>
+                                </span>
+                              </Badge>
+                            )}
+                            <div className="relative">
+                              <Input
+                                type="file"
+                                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                                onChange={(e) => handleFileUpload(e, category.id, docType)}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                id={`file-${category.id}-${index}`}
+                              />
+                              <Button 
+                                variant={isUploaded ? "outline" : "default"} 
+                                size="sm"
+                                className="cursor-pointer"
+                              >
+                                <Plus className="h-4 w-4 mr-1" />
+                                {isUploaded ? "Re-upload" : "Upload"}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {isUploaded && uploadedDoc && (
+                          <div className="mt-2 p-2 bg-white rounded border">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <FileText className="h-4 w-4 text-blue-600" />
+                                <span className="text-sm font-medium">{uploadedDoc.name}</span>
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {uploadedDoc.size} • {uploadedDoc.uploadDate}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
 
-      {/* Uploaded Documents */}
+      {/* Overall Progress Summary */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
             <FileText className="h-5 w-5 mr-2 text-green-600" />
-            Uploaded Documents
+            Overall Documentation Progress
           </CardTitle>
           <CardDescription>
-            Track the status of your submitted compliance documents
+            Complete all categories to maximize your ESG score
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {esgCategories.map((category) => {
+              const progress = getDocumentProgress(category.id, category.requiredDocuments);
+              const isComplete = progress.percentage === 100;
+              
+              return (
+                <div key={category.id} className={`p-3 rounded-lg border text-center ${
+                  isComplete ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <div className={`w-8 h-8 mx-auto mb-2 rounded-full flex items-center justify-center ${
+                    isComplete ? 'bg-green-100' : 'bg-gray-100'
+                  }`}>
+                    {isComplete ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <FileText className="h-4 w-4 text-gray-400" />
+                    )}
+                  </div>
+                  <p className="text-xs font-medium text-gray-900 mb-1">
+                    {category.name.split(' ').slice(0, 2).join(' ')}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {progress.uploaded}/{progress.total}
+                  </p>
+                  <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
+                    <div 
+                      className={`h-1 rounded-full transition-all duration-300 ${
+                        isComplete ? 'bg-green-500' : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${progress.percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* All Uploaded Documents */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <FileText className="h-5 w-5 mr-2 text-blue-600" />
+            All Uploaded Documents ({documents.length})
+          </CardTitle>
+          <CardDescription>
+            View and manage all your submitted compliance documents
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
             {documents.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                <div className="flex items-center space-x-4">
+              <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                <div className="flex items-center space-x-3">
                   <div className="bg-blue-100 p-2 rounded">
-                    <FileText className="h-5 w-5 text-blue-600" />
+                    <FileText className="h-4 w-4 text-blue-600" />
                   </div>
                   <div>
                     <h3 className="font-medium text-gray-900">{doc.name}</h3>
                     <p className="text-sm text-gray-600">
-                      {getCategoryName(doc.category)} • {doc.size} • Uploaded {doc.uploadDate}
+                      {doc.documentType} • {doc.size} • {doc.uploadDate}
                     </p>
                   </div>
                 </div>
@@ -207,39 +305,6 @@ const DocumentUpload = () => {
                 <p className="text-sm">Upload your first compliance document to get started</p>
               </div>
             )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Upload Progress */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Documentation Progress</CardTitle>
-          <CardDescription>Complete all categories to maximize your ESG score</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {esgCategories.map((category) => {
-              const hasDocument = documents.some(doc => doc.category === category.id);
-              return (
-                <div key={category.id} className={`p-3 rounded-lg border text-center ${
-                  hasDocument ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-                }`}>
-                  <div className={`w-8 h-8 mx-auto mb-2 rounded-full flex items-center justify-center ${
-                    hasDocument ? 'bg-green-100' : 'bg-gray-100'
-                  }`}>
-                    {hasDocument ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <FileText className="h-4 w-4 text-gray-400" />
-                    )}
-                  </div>
-                  <p className="text-xs font-medium text-gray-900">
-                    {category.name.split(' ')[0]}
-                  </p>
-                </div>
-              );
-            })}
           </div>
         </CardContent>
       </Card>
